@@ -4,8 +4,8 @@ import 'package:to_do_app/model/todo.dart';
 
 class ToDoItem extends StatelessWidget {
   final ToDo todoo;
-  final onToDoChanged;
-  final onDeleteItem;
+  final Function(ToDo) onToDoChanged;
+  final Function(String) onDeleteItem;
   const ToDoItem({
     super.key,
     required this.todoo,
@@ -48,7 +48,7 @@ class ToDoItem extends StatelessWidget {
           ),
           child: IconButton(
             onPressed: () {
-              onDeleteItem(todoo.id);
+              onDeleteItem(todoo.id!);
             },
             icon: Icon(Icons.delete),
             color: Colors.white,
