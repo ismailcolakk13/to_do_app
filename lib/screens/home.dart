@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:to_do_app/model/todo.dart';
@@ -50,13 +51,14 @@ class _HomeState extends State<Home> {
     } else if (todoDate == today.subtract(Duration(days: 1))) {
       return "Dün";
     } else {
-      return DateFormat("d MMMM, yyyy").format(date);
+      return DateFormat("d MMMM, yyyy","tr_TR").format(date);
     }
   }
 
   @override
   void initState() {
     super.initState();
+    initializeDateFormatting("tr_TR",null);
     _loadTodos();
   }
 
