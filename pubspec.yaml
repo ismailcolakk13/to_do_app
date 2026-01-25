@@ -10,6 +10,7 @@ dependencies:
   flutter:
     sdk: flutter
   intl: ^0.20.2
+  lottie: ^3.3.2
   shared_preferences: ^2.5.4
 
 dev_dependencies:
@@ -22,4 +23,5 @@ flutter:
   assets: 
     - assets/
     - assets/img/
+    - assets/lotties/
 
