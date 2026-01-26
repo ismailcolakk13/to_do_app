@@ -1,16 +1,25 @@
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz_data;
 
 class NotificationService {
-  static final FlutterLocalNotificationsPlugin _notificationsPlugin =
+  static final NotificationService _instance = NotificationService._internal();
+  factory NotificationService() => _instance;
+  NotificationService._internal();
+
+  final FlutterLocalNotificationsPlugin _notificationsPlugin =
       FlutterLocalNotificationsPlugin();
 
   /// Initialize notifications (call in main())
-  static Future<void> init() async {
+  Future<void> init() async {
     // Initialize timezone database
     tz_data.initializeTimeZones();
+
+    if (Platform.isIOS) tz.setLocalLocation(tz.getLocation("Europe/Istanbul"));
 
     // Android settings
     const AndroidInitializationSettings androidSettings =
@@ -29,11 +38,18 @@ class NotificationService {
     final InitializationSettings initializationSettings =
         InitializationSettings(android: androidSettings, iOS: iosSettings);
 
-    await _notificationsPlugin.initialize(
-      settings: initializationSettings);
+    await _notificationsPlugin.initialize(settings: initializationSettings);
+
+    if (Platform.isIOS) {
+      await _notificationsPlugin
+          .resolvePlatformSpecificImplementation<
+            IOSFlutterLocalNotificationsPlugin
+          >()
+          ?.requestPermissions(alert: true, badge: true, sound: true);
+    }
   }
 
-  static NotificationDetails _notificationDetails() {
+  NotificationDetails _notificationDetails() {
     return const NotificationDetails(
       android: AndroidNotificationDetails(
         "daily_channel_id",
@@ -45,7 +61,8 @@ class NotificationService {
       iOS: DarwinNotificationDetails(
         presentAlert: true,
         presentBadge: true,
-        presentSound: true
+        presentSound: true,
+        sound: "default"
       ),
     );
   }
@@ -119,45 +136,28 @@ class NotificationService {
   // }
 
   // /// Schedule a future notification
-  // static Future<void> scheduleNotification({
-  //   required int id,
-  //   required String title,
-  //   required String body,
-  //   required DateTime scheduledDate,
-  //   String? payload,
-  // }) async {
-  //   // Convert to timezone-aware datetime
-  //   final tz.TZDateTime tzScheduledDate = tz.TZDateTime.from(scheduledDate, tz.local);
+  Future<void> scheduleNotification({
+    required int id,
+    required String title,
+    required String body,
+    required DateTime scheduledDate,
+    String? payload,
+  }) async {
+    // Convert to timezone-aware datetime
+    final tz.TZDateTime tzScheduledDate = tz.TZDateTime.from(
+      scheduledDate,
+      tz.local,
+    );
+    debugPrint(tzScheduledDate.toIso8601String());
 
-  //   const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
-  //     'todo_reminder_channel',
-  //     'Görev Hatırlatıcısı',
-  //     channelDescription: 'Yapılacaklar listesi hatırlatıcıları',
-  //     importance: Importance.max,
-  //     priority: Priority.high,
-  //   );
-
-  //   final DarwinNotificationDetails iosDetails = DarwinNotificationDetails(
-  //     presentAlert: true,
-  //     presentBadge: true,
-  //     presentSound: true,
-  //   );
-
-  //   final NotificationDetails platformDetails = NotificationDetails(
-  //     android: androidDetails,
-  //     iOS: iosDetails,
-  //   );
-
-  //   await _notificationsPlugin.zonedSchedule(
-  //     id,
-  //     title,
-  //     body,
-  //     tzScheduledDate,
-  //     platformDetails,
-  //     uiLocalNotificationDateInterpretation:
-  //         UILocalNotificationDateInterpretation.absoluteTime,
-  //     androidAllowWhileIdle: true,
-  //     payload: payload,
-  //   );
-  // }
+    await _notificationsPlugin.zonedSchedule(
+      id: id,
+      title: title,
+      body: body,
+      scheduledDate: tzScheduledDate,
+      notificationDetails: _notificationDetails(),
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      payload: payload,
+    );
+  }
 }

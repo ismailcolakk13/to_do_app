@@ -37,6 +37,8 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
             <AndroidFlutterLocalNotificationsPlugin>();
 
     await androidImplementation?.requestNotificationsPermission();
+    final bool? exactAlarmGranted = await androidImplementation?.requestExactAlarmsPermission();
+    debugPrint('Exact alarm permission: $exactAlarmGranted');
   }
 }
 
@@ -292,7 +294,7 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
           child: groupedTodos.isEmpty
               ? Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
+                  children: [                     
                     Text(
                       _selectedDate != null
                           ? DateFormat(
@@ -326,7 +328,7 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
                     ),
                   ],
                 )
-              : SizedBox.shrink(),
+              : SizedBox(width: 300),
         ),
       ],
     );
@@ -343,7 +345,10 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
           Text("İşgüç"),
           ElevatedButton(onPressed: () {
             NotificationService().showNotification(id: 1,title: "Test",body: "bildirimmm");
-          }, child: const Text("bildirim test")),
+          }, child: const Text("b1")),
+          ElevatedButton(onPressed: () {
+          NotificationService().scheduleNotification(id: 5, title: "zamanlı test", body: "Yap artık şunu!", scheduledDate: DateTime.now().add(Duration(seconds: 5)));
+          }, child: const Text("b2")),
           SizedBox(
             height: 40,
             width: 40,
@@ -384,6 +389,8 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
           creationDate: DateTime.now(),
         ),
       );
+      NotificationService().scheduleNotification(id: 5, title: todo, body: "Yap artık şunu!", scheduledDate: (_selectedDate ?? DateTime.now()).copyWith(hour:9));
+      debugPrint("çalıştı?");
       _foundToDo = todosList;
       _groupTodosByDate();
       _selectedDate = null;
