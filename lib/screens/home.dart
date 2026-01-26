@@ -1,10 +1,13 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:to_do_app/model/todo.dart';
+import 'package:to_do_app/services/notification_service.dart';
 import '../constants/colors.dart';
 import '../widgets/todo_item.dart';
 import 'package:lottie/lottie.dart';
@@ -26,6 +29,16 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
 
   late AnimationController _animationController;
   late Animation<double> _scaleAnimation;
+
+  Future<void> _requestNotificationPermission() async {
+  if (Platform.isAndroid) {
+    final AndroidFlutterLocalNotificationsPlugin? androidImplementation =
+        FlutterLocalNotificationsPlugin().resolvePlatformSpecificImplementation
+            <AndroidFlutterLocalNotificationsPlugin>();
+
+    await androidImplementation?.requestNotificationsPermission();
+  }
+}
 
   void _groupTodosByDate() {
     Map<String, List<ToDo>> grouped = {};
@@ -77,6 +90,7 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
     super.initState();
     initializeDateFormatting("tr_TR", null);
     _loadTodos();
+    _requestNotificationPermission();
 
     _animationController = AnimationController(
       vsync: this,
@@ -327,6 +341,9 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
         children: [
           Icon(Icons.menu, color: tdBlack, size: 30),
           Text("İşgüç"),
+          ElevatedButton(onPressed: () {
+            NotificationService().showNotification(id: 1,title: "Test",body: "bildirimmm");
+          }, child: const Text("bildirim test")),
           SizedBox(
             height: 40,
             width: 40,
