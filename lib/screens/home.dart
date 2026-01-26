@@ -16,12 +16,16 @@ class Home extends StatefulWidget {
   State<Home> createState() => _HomeState();
 }
 
-class _HomeState extends State<Home> {
+class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
   List<ToDo> todosList = [];
   Map<String, List<ToDo>> groupedTodos = {};
   List<ToDo> _foundToDo = [];
   final _todoController = TextEditingController();
   final _searchController = TextEditingController();
+  DateTime? _selectedDate;
+
+  late AnimationController _animationController;
+  late Animation<double> _scaleAnimation;
 
   void _groupTodosByDate() {
     Map<String, List<ToDo>> grouped = {};
@@ -37,7 +41,16 @@ class _HomeState extends State<Home> {
     var sortedEntries = grouped.entries.toList()
       ..sort((a, b) => b.key.compareTo(a.key));
 
-    groupedTodos = Map.fromEntries(sortedEntries);
+    setState(() {
+      groupedTodos = Map.fromEntries(sortedEntries.reversed);
+
+      if (groupedTodos.isEmpty) {
+        _animationController.repeat();
+      } else {
+        _animationController.stop();
+        _animationController.value = 0;
+      }
+    });
   }
 
   String _formatDateHeader(String dateKey) {
@@ -64,10 +77,29 @@ class _HomeState extends State<Home> {
     super.initState();
     initializeDateFormatting("tr_TR", null);
     _loadTodos();
+
+    _animationController = AnimationController(
+      vsync: this,
+      duration: Duration(microseconds: 16500),
+    );
+
+    _scaleAnimation =
+        TweenSequence<double>([
+          TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.15), weight: 20),
+          TweenSequenceItem(tween: Tween(begin: 1.15, end: 1.0), weight: 20),
+          TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.2), weight: 20),
+          TweenSequenceItem(tween: Tween(begin: 1.2, end: 1.0), weight: 40),
+        ]).animate(
+          CurvedAnimation(
+            parent: _animationController,
+            curve: Curves.easeInOut,
+          ),
+        );
   }
 
   @override
   void dispose() {
+    _animationController.dispose();
     _todoController.dispose();
     _searchController.dispose();
     super.dispose();
@@ -86,7 +118,7 @@ class _HomeState extends State<Home> {
       });
     } else {
       setState(() {
-        todosList = ToDo.todoList();
+        todosList = [];
         _foundToDo = todosList;
         _groupTodosByDate();
       });
@@ -117,78 +149,26 @@ class _HomeState extends State<Home> {
     );
   }
 
-  Row _addTodoItem() {
-    return Row(
-      children: [
-        Expanded(
-          child: Container(
-            margin: EdgeInsets.only(bottom: 20, right: 20, left: 20),
-            padding: EdgeInsets.symmetric(horizontal: 20, vertical: 5),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: [
-                const BoxShadow(
-                  color: Colors.grey,
-                  offset: Offset(0, 0),
-                  blurRadius: 10,
-                  spreadRadius: 0,
-                ),
-              ],
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: TextField(
-              decoration: InputDecoration(
-                hintText: "Yeni bir şey?",
-                border: InputBorder.none,
-              ),
-              controller: _todoController,
-            ),
-          ),
-        ),
-        Container(
-          margin: EdgeInsets.only(bottom: 20, right: 20),
-          child: ElevatedButton(
-            onPressed: () {
-              _handleAddItem(_todoController.text);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: tdBlue,
-              foregroundColor: Colors.white,
-              minimumSize: Size(60, 60),
-              elevation: 10,
-            ),
-            child: Text("+", style: TextStyle(fontSize: 40)),
-          ),
-        ),
-      ],
-    );
-  }
-
   Expanded _todoListView() {
     return Expanded(
       child: groupedTodos.isEmpty
-          ? Stack(
-              clipBehavior: Clip.none,
+          ? Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Text(
-                      "Yeni birşey ekliyorsan +' ya bas\nArama yapıyorsan aradığın yok\nHiçbiri değilse işin yok :D",
-                      style: TextStyle(fontSize: 20, color: Colors.grey[800]),
-                      textAlign: TextAlign.center,
-                    ),
-                    Lottie.asset("assets/lotties/emptyghost.json"),
-                  ],
+                Text(
+                  "Yeni birşey ekliyorsan +' ya bas\nArama yapıyorsan aradığın yok\nHiçbiri değilse işin yok :D",
+                  style: TextStyle(fontSize: 20, color: Colors.grey[800]),
+                  textAlign: TextAlign.center,
                 ),
-                Positioned(
-                  top: 20,
-                  right: 35,
-                  child: CustomPaint(
-                    size: Size(120, 100),
-                    painter: CurvedArrowPainter(),
-                  ),
+                Lottie.asset(
+                  "assets/lotties/emptyghost.json",
+                  frameRate: FrameRate(60),
+                  repeat: true,
+                  animate: true,
+                  height: 400,
+                  width: 400,
+                  fit: BoxFit.contain,
                 ),
               ],
             )
@@ -201,13 +181,13 @@ class _HomeState extends State<Home> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Container(
-                      margin: EdgeInsets.only(top: 30, bottom: 20),
+                      margin: EdgeInsets.only(top: 30, bottom: 15),
                       padding: EdgeInsets.only(left: 10),
                       child: Text(
                         _formatDateHeader(dateKey),
                         style: TextStyle(
                           fontSize: 26,
-                          fontWeight: FontWeight.w500,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
                     ),
@@ -225,44 +205,116 @@ class _HomeState extends State<Home> {
     );
   }
 
-  Container _searchBox() {
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 15),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.search, color: tdBlack, size: 20),
-          SizedBox(width: 10),
-          Expanded(
-            child: TextField(
-              controller: _searchController,
-              onChanged: (value) => _runFilter(value),
-              decoration: InputDecoration(
-                contentPadding: EdgeInsets.zero,
-                border: InputBorder.none,
-                hintText: "Ara",
-                hintStyle: TextStyle(color: tdGrey),
-                isDense: true,
+  Column _searchBox() {
+    return Column(
+      spacing: 0,
+      children: [
+        Container(
+          padding: EdgeInsets.symmetric(horizontal: 15),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.search, color: tdBlack, size: 20),
+              SizedBox(width: 10),
+              Expanded(
+                child: TextField(
+                  controller: _searchController,
+                  onChanged: (value) => _runFilter(value),
+                  decoration: InputDecoration(
+                    contentPadding: EdgeInsets.zero,
+                    border: InputBorder.none,
+                    hintText: "Ara veya ekle",
+                    hintStyle: TextStyle(color: tdGrey),
+                    isDense: true,
+                  ),
+                ),
               ),
+              ScaleTransition(
+                scale: _scaleAnimation,
+                child: AnimatedContainer(
+                  duration: Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                  width: 32,
+                  // height: 32,
+                  decoration: BoxDecoration(
+                    color: groupedTodos.isEmpty
+                        ? Colors.green
+                        : Colors.transparent,
+                    shape: BoxShape.circle,
+                  ),
+                  child: IconButton(
+                    onPressed: () {
+                      if (_searchController.text.isNotEmpty) {
+                        _handleAddItem(_searchController.text);
+                        _searchController.clear();
+                        _runFilter("");
+                      }
+                    },
+                    icon: Icon(Icons.add, size: 20),
+                    padding: EdgeInsets.zero,
+                    constraints: BoxConstraints(),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        AnimatedContainer(
+          duration: Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+          height: groupedTodos.isEmpty ? 40 : 0,
+          padding: EdgeInsets.symmetric(horizontal: 15),
+          margin: EdgeInsets.symmetric(horizontal: 20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.only(
+              bottomLeft: Radius.circular(20),
+              bottomRight: Radius.circular(20),
             ),
           ),
-          IconButton(
-            onPressed: () {
-              if (_searchController.text.isNotEmpty) {
-                _handleAddItem(_searchController.text);
-                _searchController.clear();
-                _runFilter("");
-              }
-            },
-            icon: Icon(Icons.add, size: 20),
-            padding: EdgeInsets.zero,
-            constraints: BoxConstraints(),
-          ),
-        ],
-      ),
+          child: groupedTodos.isEmpty
+              ? Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      _selectedDate != null
+                          ? DateFormat(
+                              "d MMMM yyyy",
+                              "tr_TR",
+                            ).format(_selectedDate!)
+                          : "Ne zamana yapıcan?",
+                      style: TextStyle(
+                        color: _selectedDate != null ? tdBlack : tdGrey,
+                        fontSize: 14,
+                      ),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.calendar_today, size: 20, color: tdBlue),
+                      onPressed: () async {
+                        final DateTime? picked = await showDatePicker(
+                          context: context,
+                          initialDate: _selectedDate ?? DateTime.now(),
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime(2030),
+                          locale: Locale('tr', 'TR'),
+                        );
+                        if (picked != null) {
+                          setState(() {
+                            _selectedDate = picked;
+                          });
+                        }
+                      },
+                      padding: EdgeInsets.zero,
+                      constraints: BoxConstraints(),
+                    ),
+                  ],
+                )
+              : SizedBox.shrink(),
+        ),
+      ],
     );
   }
 
@@ -280,7 +332,7 @@ class _HomeState extends State<Home> {
             width: 40,
             child: ClipRRect(
               borderRadius: BorderRadius.circular(10),
-              child: Image.asset("assets/img/avatar.jpg"),
+              child: Icon(Icons.person),
             ),
           ),
         ],
@@ -310,12 +362,14 @@ class _HomeState extends State<Home> {
       todosList.add(
         ToDo(
           id: DateTime.now().millisecondsSinceEpoch.toString(),
-          date: DateTime.now(),
+          date: _selectedDate ?? DateTime.now(),
           todoText: todo,
+          creationDate: DateTime.now(),
         ),
       );
       _foundToDo = todosList;
       _groupTodosByDate();
+      _selectedDate = null;
     });
     _todoController.clear();
     _saveTodos();
@@ -340,42 +394,4 @@ class _HomeState extends State<Home> {
       _groupTodosByDate();
     });
   }
-}
-
-class CurvedArrowPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.grey[600]!
-      ..strokeWidth = 2.5
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-
-    final path = Path();
-
-    // Start point (bottom of arrow, near the text)
-    path.moveTo(size.width * 0.5, size.height * 0.8);
-
-    // Create a curved path going up and to the right
-    path.quadraticBezierTo(
-      size.width * 0.7,
-      size.height * 0.4, // Control point
-      size.width * 0.9,
-      size.height * 0.1, // End point
-    );
-
-    canvas.drawPath(path, paint);
-
-    // Draw arrowhead
-    final arrowPath = Path();
-    arrowPath.moveTo(size.width * 0.9, size.height * 0.1);
-    arrowPath.lineTo(size.width * 0.85, size.height * 0.15);
-    arrowPath.moveTo(size.width * 0.9, size.height * 0.1);
-    arrowPath.lineTo(size.width * 0.95, size.height * 0.13);
-
-    canvas.drawPath(arrowPath, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:to_do_app/screens/home.dart';
+import "package:google_fonts/google_fonts.dart";
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 void main() {
   runApp(const MainApp());
@@ -23,6 +25,19 @@ class _MainAppState extends State<MainApp> {
     );
     
     return MaterialApp(
+      title: "İşgüç",
+      theme: ThemeData(
+        fontFamily: "Nunito"
+      ),
+      localizationsDelegates: [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: [
+        Locale('tr', 'TR'),
+      ],
+      locale: Locale("tr","TR"),
       debugShowCheckedModeBanner: false,
       home: Home(),
     );

@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:to_do_app/constants/colors.dart';
 import 'package:to_do_app/model/todo.dart';
@@ -37,6 +38,10 @@ class ToDoItem extends StatelessWidget {
             decoration: todoo.isDone ? TextDecoration.lineThrough : null,
           ),
         ),
+        subtitle: Text(
+          "Oluşturma tarihi: ${todoo.creationDate.day}/${todoo.creationDate.month}/${todoo.creationDate.year}",
+          style: TextStyle(color: tdGrey, fontSize: 12),
+        ),
         trailing: Container(
           padding: EdgeInsets.all(0),
           margin: EdgeInsets.symmetric(vertical: 12),
@@ -47,8 +52,31 @@ class ToDoItem extends StatelessWidget {
             borderRadius: BorderRadius.circular(5),
           ),
           child: IconButton(
-            onPressed: () {
-              onDeleteItem(todoo.id!);
+            onPressed: () async {
+              final bool? confirmed = await showCupertinoDialog<bool>(
+                context: context,
+                builder: (BuildContext context) {
+                  return CupertinoAlertDialog(
+                    title: Text("Emin misin?"),
+                    content: Text(
+                      "Bu görevi silmek istediğine emin misin? Bu işlem geri alınamaz.",
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () =>
+                            Navigator.of(context).pop(false), // Cancel
+                        child: Text("İptal", style: TextStyle(color: tdGrey)),
+                      ),
+                      TextButton(
+                        onPressed: () =>
+                            Navigator.of(context).pop(true), // Confirm
+                        child: Text("Sil", style: TextStyle(color: tdRed)),
+                      ),
+                    ],
+                  );
+                },
+              );
+              if(confirmed==true) onDeleteItem(todoo.id!);
             },
             icon: Icon(Icons.delete),
             color: Colors.white,
