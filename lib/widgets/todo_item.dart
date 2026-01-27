@@ -38,9 +38,15 @@ class ToDoItem extends StatelessWidget {
             decoration: todoo.isDone ? TextDecoration.lineThrough : null,
           ),
         ),
-        subtitle: Text(
-          "Oluşturma tarihi: ${todoo.creationDate.day}/${todoo.creationDate.month}/${todoo.creationDate.year}",
-          style: TextStyle(color: tdGrey, fontSize: 12),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              "Oluşturma tarihi: ${todoo.creationDate.day}/${todoo.creationDate.month}/${todoo.creationDate.year}",
+              style: TextStyle(color: tdGrey, fontSize: 12),
+            ),
+            Row(children: [Icon(Icons.alarm_rounded,size: 12,),Text(" ${todoo.date.hour}:${todoo.date.minute}' a kadar",style: TextStyle(fontSize: 12,color: Colors.grey),)])
+          ],
         ),
         trailing: Container(
           padding: EdgeInsets.all(0),

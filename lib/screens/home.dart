@@ -7,6 +7,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:to_do_app/model/todo.dart';
+import 'package:to_do_app/screens/settings.dart';
 import 'package:to_do_app/services/notification_service.dart';
 import '../constants/colors.dart';
 import '../widgets/todo_item.dart';
@@ -26,21 +27,29 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
   final _todoController = TextEditingController();
   final _searchController = TextEditingController();
   DateTime? _selectedDate;
+  TimeOfDay? _selectedTime;
+  bool _hasScrolledToToday = false;
 
   late AnimationController _animationController;
   late Animation<double> _scaleAnimation;
 
-  Future<void> _requestNotificationPermission() async {
-  if (Platform.isAndroid) {
-    final AndroidFlutterLocalNotificationsPlugin? androidImplementation =
-        FlutterLocalNotificationsPlugin().resolvePlatformSpecificImplementation
-            <AndroidFlutterLocalNotificationsPlugin>();
+  final ScrollController _scrollController = ScrollController();
+  final Map<String, GlobalKey> _headerKeys = {};
 
-    await androidImplementation?.requestNotificationsPermission();
-    final bool? exactAlarmGranted = await androidImplementation?.requestExactAlarmsPermission();
-    debugPrint('Exact alarm permission: $exactAlarmGranted');
+  Future<void> _requestNotificationPermission() async {
+    if (Platform.isAndroid) {
+      final AndroidFlutterLocalNotificationsPlugin? androidImplementation =
+          FlutterLocalNotificationsPlugin()
+              .resolvePlatformSpecificImplementation<
+                AndroidFlutterLocalNotificationsPlugin
+              >();
+
+      await androidImplementation?.requestNotificationsPermission();
+      final bool? exactAlarmGranted = await androidImplementation
+          ?.requestExactAlarmsPermission();
+      debugPrint('Exact alarm permission: $exactAlarmGranted');
+    }
   }
-}
 
   void _groupTodosByDate() {
     Map<String, List<ToDo>> grouped = {};
@@ -58,6 +67,7 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
 
     setState(() {
       groupedTodos = Map.fromEntries(sortedEntries.reversed);
+      _headerKeys.clear();
 
       if (groupedTodos.isEmpty) {
         _animationController.repeat();
@@ -66,6 +76,23 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
         _animationController.value = 0;
       }
     });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollToToday();
+      _hasScrolledToToday = true;
+    });
+  }
+
+  void _scrollToToday() {
+    final todayKey = DateFormat("yyyy-MM-dd").format(DateTime.now());
+    final key = _headerKeys[todayKey];
+    if (key?.currentContext != null) {
+      Scrollable.ensureVisible(
+        key!.currentContext!,
+        duration: Duration(milliseconds: 600),
+        curve: Curves.easeInOut,
+      );
+    }
   }
 
   String _formatDateHeader(String dateKey) {
@@ -96,7 +123,7 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
 
     _animationController = AnimationController(
       vsync: this,
-      duration: Duration(microseconds: 16500),
+      duration: Duration(milliseconds: 16500),
     );
 
     _scaleAnimation =
@@ -189,11 +216,23 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
               ],
             )
           : ListView.builder(
+              controller: _scrollController,
               itemCount: groupedTodos.length,
               itemBuilder: (context, index) {
                 String dateKey = groupedTodos.keys.elementAt(index);
                 List<ToDo> todosForDate = groupedTodos[dateKey]!;
+
+                // Create or reuse key
+                if (!_headerKeys.containsKey(dateKey)) {
+                  _headerKeys[dateKey] = GlobalKey();
+                }
+                final headerKey = _headerKeys[dateKey]!;
+
+                // Check if this is today
+                final isToday =
+                    dateKey == DateFormat("yyyy-MM-dd").format(DateTime.now());
                 return Column(
+                  key: isToday ? headerKey : null,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Container(
@@ -294,7 +333,7 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
           child: groupedTodos.isEmpty
               ? Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [                     
+                  children: [
                     Text(
                       _selectedDate != null
                           ? DateFormat(
@@ -326,6 +365,39 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
                       padding: EdgeInsets.zero,
                       constraints: BoxConstraints(),
                     ),
+                    Text(
+                      _selectedTime != null
+                          ? "${_selectedTime!.hour}:${_selectedTime!.minute}"
+                          : "",
+                      style: TextStyle(
+                        color: _selectedDate != null ? tdBlack : tdGrey,
+                        fontSize: 14,
+                      ),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.timer, size: 20, color: tdBlue),
+                      onPressed: () async {
+                        final TimeOfDay? picked = await showTimePicker(
+                          context: context,
+                          initialTime: TimeOfDay.now(),
+                          builder: (context, child) {
+                            return MediaQuery(
+                              data: MediaQuery.of(
+                                context,
+                              ).copyWith(alwaysUse24HourFormat: true),
+                              child: child!,
+                            );
+                          },
+                        );
+                        if (picked != null) {
+                          setState(() {
+                            _selectedTime = picked;
+                          });
+                        }
+                      },
+                      padding: EdgeInsets.zero,
+                      constraints: BoxConstraints(),
+                    ),
                   ],
                 )
               : SizedBox(width: 300),
@@ -338,26 +410,19 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
     return AppBar(
       backgroundColor: tdBGColor,
       elevation: 0,
-      title: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Icon(Icons.menu, color: tdBlack, size: 30),
-          Text("İşgüç"),
-          ElevatedButton(onPressed: () {
-            NotificationService().showNotification(id: 1,title: "Test",body: "bildirimmm");
-          }, child: const Text("b1")),
-          ElevatedButton(onPressed: () {
-          NotificationService().scheduleNotification(id: 5, title: "zamanlı test", body: "Yap artık şunu!", scheduledDate: DateTime.now().add(Duration(seconds: 5)));
-          }, child: const Text("b2")),
-          SizedBox(
-            height: 40,
-            width: 40,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: Icon(Icons.person),
-            ),
-          ),
-        ],
+      title: Text(
+        "İşgüç",
+        style: TextStyle(fontWeight: FontWeight.bold, color: tdBlue),
+      ),
+      centerTitle: true,
+      leading: IconButton(
+        icon: Icon(Icons.settings, color: tdBlack, size: 30),
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => SettingsScreen()),
+          );
+        },
       ),
     );
   }
@@ -378,22 +443,50 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
     _saveTodos();
   }
 
-  void _handleAddItem(String todo) {
+  void _handleAddItem(String todo) async {
     if (todo.isEmpty) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    final remainderHour = prefs.getInt("reminder_hour") ?? 2; // Default 2 saat
+    final remainderMinute =
+        prefs.getInt("reminder_minute") ?? 0; // Default 0 dakika
+    final notificationsEnabled = prefs.getBool('notifications_enabled') ?? true;
+
     setState(() {
+      final newTodoId = DateTime.now().millisecondsSinceEpoch.toString();
+      final taskDate = (_selectedDate ?? DateTime.now()).add(
+        Duration(hours: _selectedTime!.hour, minutes: _selectedTime!.minute),
+      );
+
       todosList.add(
         ToDo(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
-          date: _selectedDate ?? DateTime.now(),
+          id: newTodoId,
+          date: taskDate,
           todoText: todo,
           creationDate: DateTime.now(),
         ),
       );
-      NotificationService().scheduleNotification(id: 5, title: todo, body: "Yap artık şunu!", scheduledDate: (_selectedDate ?? DateTime.now()).copyWith(hour:9));
-      debugPrint("çalıştı?");
+
+      if (notificationsEnabled) {
+        // Check if the task date is in the future
+        if (taskDate.isAfter(DateTime.now())) {
+          NotificationService().scheduleTaskReminder(
+            id: int.parse(newTodoId.substring(newTodoId.length - 9)),
+            title: "Hatırlatma: $todo",
+            scheduledDate: taskDate,
+          );
+
+          final reminderTime = taskDate.subtract(
+            Duration(hours: remainderHour, minutes: remainderMinute),
+          );
+          debugPrint("Task reminder scheduled for: $reminderTime");
+        }
+      }
+
       _foundToDo = todosList;
       _groupTodosByDate();
       _selectedDate = null;
+      _selectedTime = null;
     });
     _todoController.clear();
     _saveTodos();

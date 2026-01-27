@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz_data;
 
@@ -62,7 +63,7 @@ class NotificationService {
         presentAlert: true,
         presentBadge: true,
         presentSound: true,
-        sound: "default"
+        sound: "default",
       ),
     );
   }
@@ -136,28 +137,84 @@ class NotificationService {
   // }
 
   // /// Schedule a future notification
-  Future<void> scheduleNotification({
+  Future<void> scheduleTaskReminder({
     required int id,
     required String title,
-    required String body,
     required DateTime scheduledDate,
     String? payload,
   }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final remainderHour = prefs.getInt("reminder_hour") ?? 2;
+    final remainderMinute = prefs.getInt("reminder_minute") ?? 0;
+    final DateTime reminderTime = scheduledDate.subtract(
+      Duration(hours: remainderHour, minutes: remainderMinute),
+    );
+
+    if (reminderTime.isBefore(DateTime.now())) {
+      debugPrint('Reminder time is in the past, not scheduling');
+      return;
+    }
     // Convert to timezone-aware datetime
     final tz.TZDateTime tzScheduledDate = tz.TZDateTime.from(
-      scheduledDate,
+      reminderTime,
       tz.local,
     );
-    debugPrint(tzScheduledDate.toIso8601String());
+
+    debugPrint("scheduled to ${tzScheduledDate.toIso8601String()}");
 
     await _notificationsPlugin.zonedSchedule(
       id: id,
       title: title,
-      body: body,
+      body: "Son $remainderHour saat $remainderMinute dakika!",
       scheduledDate: tzScheduledDate,
       notificationDetails: _notificationDetails(),
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       payload: payload,
     );
+  }
+
+  Future<void> scheduleDailyNotification({
+    required int hour,
+    required int minute,
+  }) async {
+    await _notificationsPlugin.cancel(id: 999999);
+
+    final now = tz.TZDateTime.now(tz.local);
+
+    var scheduledTime = tz.TZDateTime(
+      tz.local,
+      now.year,
+      now.month,
+      now.day,
+      hour,
+      minute,
+    );
+
+    if (scheduledTime.isBefore(now)) {
+      scheduledTime = scheduledTime.add(Duration(days: 1));
+    }
+
+    await _notificationsPlugin.zonedSchedule(
+      id: 999999,
+      scheduledDate: scheduledTime,
+      notificationDetails: _notificationDetails(),
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      matchDateTimeComponents: DateTimeComponents.time,
+      payload: "daily_notification",
+      title: "Bugün yapacakların var",
+      body: "Var yani...:)",
+    );
+  }
+
+  Future<void> cancelDailyNotification() async {
+    await _notificationsPlugin.cancel(id: 999999);
+  }
+
+  Future<void> cancelNotification(int id) async {
+    await _notificationsPlugin.cancel(id: id);
+  }
+
+  Future<void> cancelAllNotifications() async {
+    await _notificationsPlugin.cancelAll();
   }
 }
