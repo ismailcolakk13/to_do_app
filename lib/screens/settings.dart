@@ -48,16 +48,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
     });
   }
 
-Future<void> _saveSettings() async {
-  final prefs = await SharedPreferences.getInstance();
-  await prefs.setBool('notifications_enabled', _notificationsEnabled);
-  await prefs.setBool('daily_notification_enabled', _dailyNotificationsEnabled); // Anahtar değişti
-  await prefs.setInt('reminder_hour', _defaultReminderTime.hour);
-  await prefs.setInt('reminder_minute', _defaultReminderTime.minute);
-  await prefs.setInt('daily_notification_hour', _dailyNotificationTime.hour);
-  await prefs.setInt('daily_notification_minute', _dailyNotificationTime.minute);
-  await prefs.setString('language', _selectedLanguage);
-}
+  Future<void> _saveSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('notifications_enabled', _notificationsEnabled);
+    await prefs.setBool(
+      'daily_notification_enabled',
+      _dailyNotificationsEnabled,
+    ); // Anahtar değişti
+    await prefs.setInt('reminder_hour', _defaultReminderTime.hour);
+    await prefs.setInt('reminder_minute', _defaultReminderTime.minute);
+    await prefs.setInt('daily_notification_hour', _dailyNotificationTime.hour);
+    await prefs.setInt(
+      'daily_notification_minute',
+      _dailyNotificationTime.minute,
+    );
+    await prefs.setString('language', _selectedLanguage);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -317,7 +323,7 @@ Future<void> _saveSettings() async {
         borderRadius: BorderRadius.circular(15),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.grey.withValues(alpha: 0.1),
             spreadRadius: 1,
             blurRadius: 5,
             offset: Offset(0, 2),
@@ -333,36 +339,30 @@ Future<void> _saveSettings() async {
       context: context,
       builder: (context) => AlertDialog(
         title: Text('Dil Seç'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            RadioListTile<String>(
-              title: Text('Türkçe'),
-              value: 'Türkçe',
-              groupValue: _selectedLanguage,
-              activeColor: tdBlue,
-              onChanged: (value) {
-                setState(() {
-                  _selectedLanguage = value!;
-                });
-                _saveSettings();
-                Navigator.pop(context);
-              },
+        content: RadioGroup<String>(
+          groupValue: _selectedLanguage,
+          onChanged: (value) {
+            setState(() {
+              _selectedLanguage = value!;
+            });
+            _saveSettings();
+            Navigator.pop(context);
+          },
+          child: SizedBox(
+            height: 120,
+            child: Column(
+              children: <Widget>[
+                const ListTile(
+                  title: Text('Türkçe'),
+                  leading: Radio<String>(value: "Türkçe"),
+                ),
+                const ListTile(
+                  title: Text('English'),
+                  leading: Radio<String>(value: "English"),
+                ),
+              ],
             ),
-            RadioListTile<String>(
-              title: Text('English'),
-              value: 'English',
-              groupValue: _selectedLanguage,
-              activeColor: tdBlue,
-              onChanged: (value) {
-                setState(() {
-                  _selectedLanguage = value!;
-                });
-                _saveSettings();
-                Navigator.pop(context);
-              },
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -381,13 +381,22 @@ Future<void> _saveSettings() async {
           ),
           TextButton(
             onPressed: () async {
+              // Get navigators before async gap
+              final navigator = Navigator.of(context);
+              final scaffoldMessenger = ScaffoldMessenger.of(context);
+
+              // Close dialog
+              navigator.pop();
+
+              // Async operation
               final prefs = await SharedPreferences.getInstance();
               await prefs.remove('todos');
-              Navigator.pop(context);
-              Navigator.pop(context); // Go back to home
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(SnackBar(content: Text('Tüm veriler silindi')));
+
+              // Safe to use - no context needed
+              navigator.pop(); // Go back to home
+              scaffoldMessenger.showSnackBar(
+                SnackBar(content: Text('Tüm veriler silindi')),
+              );
             },
             child: Text('Sil', style: TextStyle(color: Colors.red)),
           ),

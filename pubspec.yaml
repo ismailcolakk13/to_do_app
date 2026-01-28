@@ -16,6 +16,7 @@ dependencies:
   flutter_localizations:
     sdk: flutter
   flutter_local_notifications: ^20.0.0
+  timezone: ^0.10.1
 
 dev_dependencies:
   flutter_test:

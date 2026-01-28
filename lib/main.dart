@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:to_do_app/screens/home.dart';
-import "package:google_fonts/google_fonts.dart";
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:to_do_app/services/notification_service.dart';
 
@@ -40,7 +39,7 @@ class _MainAppState extends State<MainApp> {
 
     return MaterialApp(
       title: "İşgüç",
-      theme: ThemeData(fontFamily: "Nunito"),
+      theme: ThemeData(fontFamily: "Nunito",colorScheme: ColorScheme.fromSeed(seedColor: Color.fromARGB(255, 69, 135, 129))),
       localizationsDelegates: [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,

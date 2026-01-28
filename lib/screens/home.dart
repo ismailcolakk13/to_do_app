@@ -1,14 +1,13 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:to_do_app/model/todo.dart';
 import 'package:to_do_app/screens/settings.dart';
 import 'package:to_do_app/services/notification_service.dart';
+import 'package:to_do_app/utils/helper_ui_functions.dart';
 import '../constants/colors.dart';
 import '../widgets/todo_item.dart';
 import 'package:lottie/lottie.dart';
@@ -24,7 +23,7 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
   List<ToDo> todosList = [];
   Map<String, List<ToDo>> groupedTodos = {};
   List<ToDo> _foundToDo = [];
-  final _todoController = TextEditingController();
+
   final _searchController = TextEditingController();
   DateTime? _selectedDate;
   TimeOfDay? _selectedTime;
@@ -35,21 +34,6 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
 
   final ScrollController _scrollController = ScrollController();
   final Map<String, GlobalKey> _headerKeys = {};
-
-  Future<void> _requestNotificationPermission() async {
-    if (Platform.isAndroid) {
-      final AndroidFlutterLocalNotificationsPlugin? androidImplementation =
-          FlutterLocalNotificationsPlugin()
-              .resolvePlatformSpecificImplementation<
-                AndroidFlutterLocalNotificationsPlugin
-              >();
-
-      await androidImplementation?.requestNotificationsPermission();
-      final bool? exactAlarmGranted = await androidImplementation
-          ?.requestExactAlarmsPermission();
-      debugPrint('Exact alarm permission: $exactAlarmGranted');
-    }
-  }
 
   void _groupTodosByDate() {
     Map<String, List<ToDo>> grouped = {};
@@ -84,6 +68,7 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
   }
 
   void _scrollToToday() {
+    if (_hasScrolledToToday) return;
     final todayKey = DateFormat("yyyy-MM-dd").format(DateTime.now());
     final key = _headerKeys[todayKey];
     if (key?.currentContext != null) {
@@ -95,35 +80,16 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
     }
   }
 
-  String _formatDateHeader(String dateKey) {
-    DateTime date = DateTime.parse(dateKey);
-    DateTime now = DateTime.now();
-    DateTime today = DateTime(now.year, now.month, now.day);
-    DateTime todoDate = DateTime(date.year, date.month, date.day);
-
-    if (todoDate == today) {
-      return "Bugün";
-    } else if (todoDate == today.add(Duration(days: 1))) {
-      return "Yarın";
-    } else if (todoDate == today.subtract(Duration(days: 1))) {
-      return "Dün";
-    } else if (todoDate.year == today.year) {
-      return DateFormat("d MMMM", "tr_TR").format(date);
-    } else {
-      return DateFormat("d MMMM yyyy", "tr_TR").format(date);
-    }
-  }
-
   @override
   void initState() {
     super.initState();
     initializeDateFormatting("tr_TR", null);
     _loadTodos();
-    _requestNotificationPermission();
+    HelperUiFunctions.requestNotificationPermission();
 
     _animationController = AnimationController(
       vsync: this,
-      duration: Duration(milliseconds: 16500),
+      duration: Duration(milliseconds: 1500),
     );
 
     _scaleAnimation =
@@ -143,7 +109,6 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
   @override
   void dispose() {
     _animationController.dispose();
-    _todoController.dispose();
     _searchController.dispose();
     super.dispose();
   }
@@ -185,224 +150,237 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
         children: [
           Container(
             padding: EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-            child: Column(children: [_searchBox(), _todoListView()]),
+            child: Column(
+              children: [
+                _searchBox(),
+                Expanded(
+                  child: groupedTodos.isEmpty ? _emptyView() : _todoListView(),
+                ),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
 
-  Expanded _todoListView() {
-    return Expanded(
-      child: groupedTodos.isEmpty
-          ? Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Text(
-                  "Yeni birşey ekliyorsan +' ya bas\nArama yapıyorsan aradığın yok\nHiçbiri değilse işin yok :D",
-                  style: TextStyle(fontSize: 20, color: Colors.grey[800]),
-                  textAlign: TextAlign.center,
-                ),
-                Lottie.asset(
-                  "assets/lotties/emptyghost.json",
-                  frameRate: FrameRate(60),
-                  repeat: true,
-                  animate: true,
-                  height: 400,
-                  width: 400,
-                  fit: BoxFit.contain,
-                ),
-              ],
-            )
-          : ListView.builder(
-              controller: _scrollController,
-              itemCount: groupedTodos.length,
-              itemBuilder: (context, index) {
-                String dateKey = groupedTodos.keys.elementAt(index);
-                List<ToDo> todosForDate = groupedTodos[dateKey]!;
+  ListView _todoListView() {
+    return ListView.builder(
+      controller: _scrollController,
+      itemCount: groupedTodos.length,
+      itemBuilder: (context, index) {
+        String dateKey = groupedTodos.keys.elementAt(index);
+        List<ToDo> todosForDate = groupedTodos[dateKey]!;
 
-                // Create or reuse key
-                if (!_headerKeys.containsKey(dateKey)) {
-                  _headerKeys[dateKey] = GlobalKey();
-                }
-                final headerKey = _headerKeys[dateKey]!;
+        // Create or reuse key
+        if (!_headerKeys.containsKey(dateKey)) {
+          _headerKeys[dateKey] = GlobalKey();
+        }
+        final headerKey = _headerKeys[dateKey]!;
 
-                // Check if this is today
-                final isToday =
-                    dateKey == DateFormat("yyyy-MM-dd").format(DateTime.now());
-                return Column(
-                  key: isToday ? headerKey : null,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      margin: EdgeInsets.only(top: 30, bottom: 15),
-                      padding: EdgeInsets.only(left: 10),
-                      child: Text(
-                        _formatDateHeader(dateKey),
-                        style: TextStyle(
-                          fontSize: 26,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    ...todosForDate.map(
-                      (todo) => ToDoItem(
-                        todoo: todo,
-                        onToDoChanged: _handleToDoChange,
-                        onDeleteItem: _handleDeleteItem,
-                      ),
-                    ),
-                  ],
-                );
-              },
+        // Check if this is today
+        final isToday =
+            dateKey == DateFormat("yyyy-MM-dd").format(DateTime.now());
+
+        return Column(
+          key: isToday ? headerKey : null,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              margin: EdgeInsets.only(top: 30, bottom: 15),
+              padding: EdgeInsets.only(left: 10),
+              child: Text(
+                HelperUiFunctions.formatDateHeader(dateKey),
+                style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
+              ),
             ),
+            ...todosForDate.map(
+              (todo) => ToDoItem(
+                todoo: todo,
+                onToDoChanged: _handleToDoChange,
+                onDeleteItem: _handleDeleteItem,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Column _emptyView() {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Text(
+          "Yeni birşey ekliyorsan +' ya bas\nArama yapıyorsan aradığın yok\nHiçbiri değilse işin yok :D",
+          style: TextStyle(fontSize: 20, color: Colors.grey[800]),
+          textAlign: TextAlign.center,
+        ),
+        Lottie.asset(
+          "assets/lotties/emptyghost.json",
+          frameRate: FrameRate(60),
+          repeat: true,
+          animate: true,
+          height: 400,
+          width: 400,
+          fit: BoxFit.contain,
+        ),
+      ],
     );
   }
 
   Column _searchBox() {
-    return Column(
-      spacing: 0,
-      children: [
-        Container(
-          padding: EdgeInsets.symmetric(horizontal: 15),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Row(
-            children: [
-              Icon(Icons.search, color: tdBlack, size: 20),
-              SizedBox(width: 10),
-              Expanded(
-                child: TextField(
-                  controller: _searchController,
-                  onChanged: (value) => _runFilter(value),
-                  decoration: InputDecoration(
-                    contentPadding: EdgeInsets.zero,
-                    border: InputBorder.none,
-                    hintText: "Ara veya ekle",
-                    hintStyle: TextStyle(color: tdGrey),
-                    isDense: true,
-                  ),
-                ),
+    return Column(spacing: 0, children: [_textRow(), _slidingDateRow()]);
+  }
+
+  Container _textRow() {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 15),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.search, color: tdBlack, size: 20),
+          SizedBox(width: 10),
+          Expanded(
+            child: TextField(
+              controller: _searchController,
+              onChanged: (value) => _runFilter(value),
+              decoration: InputDecoration(
+                contentPadding: EdgeInsets.zero,
+                border: InputBorder.none,
+                hintText: "Ara veya ekle",
+                hintStyle: TextStyle(color: tdGrey),
+                isDense: true,
               ),
-              ScaleTransition(
-                scale: _scaleAnimation,
-                child: AnimatedContainer(
-                  duration: Duration(milliseconds: 300),
-                  curve: Curves.easeInOut,
-                  width: 32,
-                  // height: 32,
-                  decoration: BoxDecoration(
-                    color: groupedTodos.isEmpty
-                        ? Colors.green
-                        : Colors.transparent,
-                    shape: BoxShape.circle,
-                  ),
-                  child: IconButton(
-                    onPressed: () {
-                      if (_searchController.text.isNotEmpty) {
-                        _handleAddItem(_searchController.text);
-                        _searchController.clear();
-                        _runFilter("");
-                      }
-                    },
-                    icon: Icon(Icons.add, size: 20),
-                    padding: EdgeInsets.zero,
-                    constraints: BoxConstraints(),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        AnimatedContainer(
-          duration: Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-          height: groupedTodos.isEmpty ? 40 : 0,
-          padding: EdgeInsets.symmetric(horizontal: 15),
-          margin: EdgeInsets.symmetric(horizontal: 20),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.only(
-              bottomLeft: Radius.circular(20),
-              bottomRight: Radius.circular(20),
             ),
           ),
-          child: groupedTodos.isEmpty
-              ? Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      _selectedDate != null
-                          ? DateFormat(
-                              "d MMMM yyyy",
-                              "tr_TR",
-                            ).format(_selectedDate!)
-                          : "Ne zamana yapıcan?",
-                      style: TextStyle(
-                        color: _selectedDate != null ? tdBlack : tdGrey,
-                        fontSize: 14,
-                      ),
-                    ),
-                    IconButton(
-                      icon: Icon(Icons.calendar_today, size: 20, color: tdBlue),
-                      onPressed: () async {
-                        final DateTime? picked = await showDatePicker(
-                          context: context,
-                          initialDate: _selectedDate ?? DateTime.now(),
-                          firstDate: DateTime(2020),
-                          lastDate: DateTime(2030),
-                          locale: Locale('tr', 'TR'),
-                        );
-                        if (picked != null) {
-                          setState(() {
-                            _selectedDate = picked;
-                          });
-                        }
-                      },
-                      padding: EdgeInsets.zero,
-                      constraints: BoxConstraints(),
-                    ),
-                    Text(
-                      _selectedTime != null
-                          ? "${_selectedTime!.hour}:${_selectedTime!.minute}"
-                          : "",
-                      style: TextStyle(
-                        color: _selectedDate != null ? tdBlack : tdGrey,
-                        fontSize: 14,
-                      ),
-                    ),
-                    IconButton(
-                      icon: Icon(Icons.timer, size: 20, color: tdBlue),
-                      onPressed: () async {
-                        final TimeOfDay? picked = await showTimePicker(
-                          context: context,
-                          initialTime: TimeOfDay.now(),
-                          builder: (context, child) {
-                            return MediaQuery(
-                              data: MediaQuery.of(
-                                context,
-                              ).copyWith(alwaysUse24HourFormat: true),
-                              child: child!,
-                            );
-                          },
-                        );
-                        if (picked != null) {
-                          setState(() {
-                            _selectedTime = picked;
-                          });
-                        }
-                      },
-                      padding: EdgeInsets.zero,
-                      constraints: BoxConstraints(),
-                    ),
-                  ],
-                )
-              : SizedBox(width: 300),
+          ScaleTransition(
+            scale: _scaleAnimation,
+            child: AnimatedContainer(
+              duration: Duration(milliseconds: 300),
+              curve: Curves.easeInOut,
+              width: 32,
+              decoration: BoxDecoration(
+                color: groupedTodos.isEmpty ? tdBlue : Colors.transparent,
+                shape: BoxShape.circle,
+              ),
+              child: IconButton(
+                onPressed: () {
+                  if (_searchController.text.isNotEmpty) {
+                    _handleAddItem(_searchController.text);
+                    _searchController.clear();
+                    _runFilter("");
+                  }
+                },
+                icon: Icon(Icons.add, size: 20),
+                padding: EdgeInsets.zero,
+                constraints: BoxConstraints(),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  AnimatedContainer _slidingDateRow() {
+    return AnimatedContainer(
+      duration: Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+      height: groupedTodos.isEmpty ? 40 : 0,
+      padding: EdgeInsets.symmetric(horizontal: 15),
+      margin: EdgeInsets.symmetric(horizontal: 20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(20),
+          bottomRight: Radius.circular(20),
         ),
-      ],
+      ),
+      child: groupedTodos.isEmpty
+          ? Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  _selectedDate != null
+                      ? DateFormat(
+                          "d MMMM yyyy",
+                          "tr_TR",
+                        ).format(_selectedDate!)
+                      : "Ne zamana yapıcan?",
+                  style: TextStyle(
+                    color: _selectedDate != null ? tdBlack : tdGrey,
+                    fontSize: 14,
+                  ),
+                ),
+                IconButton(
+                  icon: Icon(Icons.calendar_today, size: 20, color: tdBlue),
+                  onPressed: () async {
+                    final DateTime? picked = await showDatePicker(
+                      context: context,
+                      initialDate: _selectedDate ?? DateTime.now(),
+                      firstDate: DateTime(2020),
+                      lastDate: DateTime(2040),
+                      locale: Locale('tr', 'TR'),
+                    );
+                    if (picked != null) {
+                      setState(() {
+                        _selectedDate = picked;
+                      });
+                    }
+                  },
+                  padding: EdgeInsets.zero,
+                  constraints: BoxConstraints(),
+                ),
+                Text(
+                  (_selectedTime != null && _selectedDate != null)
+                      ? DateFormat("hh:mm", "tr_TR").format(
+                          _selectedDate!.add(
+                            Duration(
+                              hours: _selectedTime!.hour,
+                              minutes: _selectedTime!.minute,
+                            ),
+                          ),
+                        )
+                      : "",
+                  // ? "${_selectedTime!.hour}:${_selectedTime!.minute}"
+                  // : "",
+                  style: TextStyle(
+                    color: _selectedDate != null ? tdBlack : tdGrey,
+                    fontSize: 14,
+                  ),
+                ),
+                IconButton(
+                  icon: Icon(Icons.timer, size: 20, color: tdBlue),
+                  onPressed: () async {
+                    final TimeOfDay? picked = await showTimePicker(
+                      context: context,
+                      initialTime: TimeOfDay.now(),
+                      builder: (context, child) {
+                        return MediaQuery(
+                          data: MediaQuery.of(
+                            context,
+                          ).copyWith(alwaysUse24HourFormat: true),
+                          child: child!,
+                        );
+                      },
+                    );
+                    if (picked != null) {
+                      setState(() {
+                        _selectedTime = picked;
+                      });
+                    }
+                  },
+                  padding: EdgeInsets.zero,
+                  constraints: BoxConstraints(),
+                ),
+              ],
+            )
+          : SizedBox(width: 300),
     );
   }
 
@@ -410,10 +388,7 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
     return AppBar(
       backgroundColor: tdBGColor,
       elevation: 0,
-      title: Text(
-        "İşgüç",
-        style: TextStyle(fontWeight: FontWeight.bold, color: tdBlue),
-      ),
+      title: Text("İşgüç", style: TextStyle(fontWeight: FontWeight.bold)),
       centerTitle: true,
       leading: IconButton(
         icon: Icon(Icons.settings, color: tdBlack, size: 30),
@@ -447,9 +422,8 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
     if (todo.isEmpty) return;
 
     final prefs = await SharedPreferences.getInstance();
-    final remainderHour = prefs.getInt("reminder_hour") ?? 2; // Default 2 saat
-    final remainderMinute =
-        prefs.getInt("reminder_minute") ?? 0; // Default 0 dakika
+    final reminderHour = prefs.getInt("reminder_hour") ?? 2;
+    final reminderMinute = prefs.getInt("reminder_minute") ?? 0;
     final notificationsEnabled = prefs.getBool('notifications_enabled') ?? true;
 
     setState(() {
@@ -469,18 +443,13 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
 
       if (notificationsEnabled) {
         // Check if the task date is in the future
-        if (taskDate.isAfter(DateTime.now())) {
-          NotificationService().scheduleTaskReminder(
-            id: int.parse(newTodoId.substring(newTodoId.length - 9)),
-            title: "Hatırlatma: $todo",
-            scheduledDate: taskDate,
-          );
-
-          final reminderTime = taskDate.subtract(
-            Duration(hours: remainderHour, minutes: remainderMinute),
-          );
-          debugPrint("Task reminder scheduled for: $reminderTime");
-        }
+        _createNotification(
+          taskDate,
+          newTodoId,
+          todo,
+          reminderHour,
+          reminderMinute,
+        );
       }
 
       _foundToDo = todosList;
@@ -488,8 +457,28 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
       _selectedDate = null;
       _selectedTime = null;
     });
-    _todoController.clear();
     _saveTodos();
+  }
+
+  void _createNotification(
+    DateTime taskDate,
+    String newTodoId,
+    String todo,
+    int reminderHour,
+    int reminderMinute,
+  ) {
+    if (taskDate.isAfter(DateTime.now())) {
+      NotificationService().scheduleTaskReminder(
+        id: int.parse(newTodoId.substring(newTodoId.length - 9)),
+        title: "Hatırlatma: $todo",
+        scheduledDate: taskDate,
+      );
+
+      final reminderTime = taskDate.subtract(
+        Duration(hours: reminderHour, minutes: reminderMinute),
+      );
+      debugPrint("Task reminder scheduled for: $reminderTime");
+    }
   }
 
   void _runFilter(String enteredKeyword) {
