@@ -61,7 +61,7 @@ class ToDoItem extends StatelessWidget {
                 Icon(Icons.alarm_rounded, size: 12),
                 SizedBox(width: 3),
                 Text(
-                  DateFormat("hh:mm", "tr_TR").format(todoo.creationDate),
+                  DateFormat("HH:mm", "tr_TR").format(todoo.creationDate),
                   style: TextStyle(fontSize: 12, color: Colors.grey),
                 ),
               ],

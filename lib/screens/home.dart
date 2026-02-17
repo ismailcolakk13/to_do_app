@@ -338,7 +338,7 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
                 ),
                 Text(
                   (_selectedTime != null && _selectedDate != null)
-                      ? DateFormat("hh:mm", "tr_TR").format(
+                      ? DateFormat("HH:mm", "tr_TR").format(
                           _selectedDate!.add(
                             Duration(
                               hours: _selectedTime!.hour,
